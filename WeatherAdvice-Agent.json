@@ -1,0 +1,255 @@
+{
+  "name": "WeatherAdvice Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "weatherreading",
+          "mode": "list",
+          "cachedResultName": "weatherreading"
+        },
+        "limit": 1,
+        "sort": {
+          "values": [
+            {
+              "column": "id",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0dc42074-ff1e-420a-8595-15ddf0de7333",
+      "name": "Get_Weather_Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GXyBQi8zRZlq45nS",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=classify the weather into {\"none\", \"severe\", \"watch\"} based on the data below, then give advice.\n\nTemperature: {{ $json.temperature_c }}°C\nHumidity: {{ $json.humidity_pct }}%\nWind speed: {{ $json.wind_speed_kmh }} km/h",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "6ea3c19f-6517-43ad-95c0-c6699c73eb1c",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        464,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "id": "d509c7d9-6c0e-4516-b0d3-4ddfc1021513",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        400,
+        224
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"alert_level\": \"none\",\n  \"reasoning\": \"Mild temperatures with no severe conditions expected.\",\n  \"advice\": \"No special precautions needed; dress normally for the day.\"\n}"
+      },
+      "id": "4f3482aa-fdd1-4209-bcfb-6cf63997f263",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        656,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "601d8375-ed14-490f-a35a-c373f7337725",
+              "leftValue": "={{ $json.output.alert_level }}",
+              "rightValue": "none",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2cf1a2e8-10c3-414e-b929-ca9d58425326",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        832,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "enjo64512@gmail.com",
+        "toEmail": "enjo64512@gmail.com",
+        "subject": "=Weather Alert: {{ $json.output.alert_level }}",
+        "html": "=<h2>Weather Alert: {{ $json.output.alert_level }}</h2>\n<p><strong>Reasoning:</strong> {{ $json.output.reasoning }}</p>\n<p><strong>Advice:</strong> {{ $json.output.advice }}</p>",
+        "options": {}
+      },
+      "id": "1e2ae71a-b252-451e-9769-06ea13ddf67c",
+      "name": "Send an Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        992,
+        -80
+      ],
+      "retryOnFail": true,
+      "webhookId": "6eae86ca-7b92-43f1-a906-9892ecee9d68",
+      "credentials": {
+        "smtp": {
+          "id": "PkR5C4jJvi4nQVcI",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 23
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        16,
+        0
+      ],
+      "id": "1f2dd8d5-6844-4ad0-96df-ac3c04726d43",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get_Weather_Data": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get_Weather_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "59e02efa-9c11-4288-9040-6a2522fe6437",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "275eaabaa71ecac3b2c55b83bb8824b08281d35617b4013094799d046e5c8db9"
+  },
+  "nodeGroups": [],
+  "id": "eBWeH5aE4FcU9Lgf",
+  "tags": []
+}
